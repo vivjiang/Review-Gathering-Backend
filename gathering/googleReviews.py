@@ -1,6 +1,9 @@
 import re
 import sys
 import json
+import pymongo
+from pymongo import MongoClient
+import pandas as pd
 import dateutil.parser as dateparser
 from datetime import datetime
 import datetime as dt
@@ -22,6 +25,65 @@ def getPeriod(date):
 
 
     return 'P13'
+
+def newReviews(reviews):
+    print('in newReviews')
+    print(len(reviews.index))
+    print(reviews)
+    client = MongoClient()
+    mongodb_uri = 'mongodb://admin:ACP2018@ds145304.mlab.com:45304/reviews';
+    client = MongoClient(mongodb_uri)
+
+    db = client.reviews
+    reviews_db = db.reviews
+
+    locations=[]
+    ratings=[]
+    dates=[]
+    comments=[]
+    platform=[]
+    periods=[]
+    years=[]
+
+    new_reviews = []
+    i=0
+    while i < len(reviews.index):
+        r = reviews_db.find_one({'Content':reviews.iloc[i].get('Content'),
+                                'Location':reviews.iloc[i].get('Location'),
+                                'Date':reviews.iloc[i].get('Date'),
+                                'Rating':reviews.iloc[i].get('Rating')})
+        if (r is not None):
+            print('found review')
+        else:
+            # print('new review')
+            new_review = reviews.iloc[i]
+            ratings.append(new_review.get('Rating'))
+            comments.append(new_review.get('Content'))
+            dates.append(new_review.get('Date'))
+            locations.append(new_review.get('Location'))
+            platform.append(new_review.get('Platform'))
+            periods.append(new_review.get('Period'))
+            years.append(new_review.get('Year'))
+
+            insert_review = { 'Location': new_review.get('Location'),
+                                'Date': new_review.get('Date'),
+                                'Rating': new_review.get('Rating'),
+                                'Content': new_review.get('Content'),
+                                'Platform': new_review.get('Platform'),
+                                'Period': new_review.get('Period'),
+                                'Year': new_review.get('Year')}
+            reviews_db.insert_one(insert_review)
+        i += 1
+
+    new_reviews = {
+        'Location':locations,
+        'Content':comments,
+        'Date':dates,
+        'Platform':platform,
+        'Period':periods,
+        'Year':years
+    }
+    return new_reviews
 
 def googleReviews(accessToken):
     print('in googleReviews accessToken: ')
@@ -85,8 +147,10 @@ def googleReviews(accessToken):
                     comment=""
                 date=dateparser.parse(reviews.get('reviews')[j].get('createTime')).strftime('%m-%d-%Y')
                 year=dateparser.parse(reviews.get('reviews')[j].get('createTime')).strftime('%Y')
-                date_compare = datetime.strptime(dateparser.parse(date).strftime('%m-%d-%Y'), '%m-%d-%Y')
-                if (date_compare >= datetime.strptime('12-6-2018', '%m-%d-%Y')):
+
+                today=dt.datetime.today().strftime('%m-%d-%Y')
+                # date_compare = datetime.strptime(dateparser.parse(date).strftime('%m-%d-%Y'), '%m-%d-%Y')
+                if (date == today):
                     ratings.append(rating)
                     comments.append(comment)
                     dates.append(date)
@@ -97,17 +161,18 @@ def googleReviews(accessToken):
                     years.append(year)
                 j+=1
         i+=1
-    reviews = {
-        'Location' : stores,
-        'Date' : dates,
-        'Rating' : ratings,
-        'Content' : comments,
-        'Platform' : platform,
-        'Period' : periods,
-        'Year' : years,
-    }
+    reviews = pd.DataFrame()
+    reviews['Location'] = stores
+    reviews['Date'] = dates
+    reviews['Rating'] = ratings
+    reviews['Content'] = comments
+    reviews['Platform'] = platform
+    reviews['Period'] = periods
+    reviews['Year'] = years
 
-    return reviews
+    new_reviews=newReviews(reviews)
+
+    return new_reviews
 
 if  __name__ == '__main__':
     # findProfanity.py executed as script

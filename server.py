@@ -13,7 +13,7 @@ def home():
 
 @app.route("/google/", methods = ['POST'])
 def google():
-    print("START google", file=sys.stderr)
+    # print("START google", file = sys.stderr)
 
     response = request.get_json()
     print(response)
